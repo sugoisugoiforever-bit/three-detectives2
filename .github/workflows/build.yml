@@ -1,0 +1,52 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: unzip -q ThreeDetectives-project.zip -d src
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build
+        working-directory: src/three-detectives
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon :engine:selfTest :app:assembleRelease
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp src/three-detectives/app/build/outputs/apk/release/*.apk out/ThreeDetectives.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ThreeDetectives-apk
+          path: out/ThreeDetectives.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ github.run_number }}" out/ThreeDetectives.apk \
+            --title "ThreeDetectives build ${{ github.run_number }}" \
+            --notes "Install ThreeDetectives.apk on your phone."
